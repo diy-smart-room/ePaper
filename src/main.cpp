@@ -1,8 +1,11 @@
 #include "Arduino.h"
 #include <stdio.h>
+#include <string.h>
 #include "GxEPD2_BW.h"
 #include "SPI.h"
 #include <Fonts/FreeMonoBold9pt7b.h>
+#include "Zigbee.h"
+#include "stdlib.h"
 
 #define EPD_SCK   6
 #define EPD_MOSI  7
@@ -11,221 +14,131 @@
 #define EPD_RES   11
 #define EPD_BUSY  12
 
+struct _podatek{
+  const char* enota;
+  const char* stvar;
+  float stevilo;
+};
+
+_podatek** arrPodatkov = (_podatek**)calloc(sizeof(_podatek*),2);
 
 GxEPD2_BW<GxEPD2_370_GDEY037T03, GxEPD2_370_GDEY037T03::HEIGHT> display(
     GxEPD2_370_GDEY037T03(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY)
 );
 
-void helloWorld();
-void helloFullScreenPartialMode();
-void showPartialUpdate();
+#ifndef ZIGBEE_MODE_ZCZR
+#error "Zigbee Coordinator/Router mode is not enabled!"
+#endif
 
-const char* nekaj = "Testni izpis!";
+#define ZIGBEE_ENDPOINT 1
+
+void izpis(int);
+
+ZigbeeThermostat zbThermostat(ZIGBEE_ENDPOINT);
+bool bol = false;
+bool lol = false;
+
+void receiveTemperature(float temperature){
+  bol = true;
+  arrPodatkov[0]->stevilo = temperature;
+}
+
+
+void receiveHumidity(float humidity){
+  lol = true;
+  arrPodatkov[1]->stevilo = humidity;
+
+}
+
+char* frankenSteinnanjeStringov(int, float);
 
 void setup(){
-    SPI.begin(EPD_SCK,-1,EPD_MOSI,EPD_CS);      //na zalost je treba napisati custom configuracijo SPI bus-a, saj
-    Serial.begin(115200);                 //esp32-c6 nima tistih standardnih pinov namenjene za SPI (23=/= MOSI)
-    display.init(115200,true,50,false);
-    display.setRotation(3);
-  //helloWorld();
-  //helloFullScreenPartialMode();
-  //delay(1000);
-  //if (display.epd2.hasFastPartialUpdate)
-  //{
-    //showPartialUpdate();
-    //delay(1000);
-  //}
-  //display.hibernate();
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(3);
-    display.setCursor(100,100);
-    display.firstPage();
-    do{
-        display.print(nekaj);
-        display.fillRect(0,0,100,100,GxEPD_BLACK);
-    }while(display.nextPage());
-    
-    delay(1000);
-}
+  SPI.begin(EPD_SCK,-1,EPD_MOSI,EPD_CS);      //na zalost je treba napisati custom configuracijo SPI bus-a, saj
+  Serial.begin(115200);                 //esp32-c6 nima tistih standardnih pinov namenjene za SPI (23=/= MOSI)
+  display.init(115200,true,50,false);
+  display.setRotation(3);
+  display.clearScreen();
+  
+  arrPodatkov[0] = (_podatek*)calloc(sizeof(_podatek),1);
+  arrPodatkov[0]->enota = "C";
+  arrPodatkov[0]->stvar = "Temp: ";
+  arrPodatkov[0]->stevilo = -1; 
+  
+  arrPodatkov[1] = (_podatek*)calloc(sizeof(_podatek),1);
+  arrPodatkov[1]->enota = "%";
+  arrPodatkov[1]->stvar = "Vlaga: ";
+  arrPodatkov[1]->stevilo = -1; 
 
-int a = 0;
+  display.setTextSize(3);
+  
+  log_i("ESP32-C6 Zigbee Thermostat starting");
 
-void loop() {
-    display.setPartialWindow(0,0,100,100);
-    display.firstPage();
-    do{
-        display.fillRect(0,0,50,50,GxEPD_BLACK);
-        display.fillRect(50,50,50,50,GxEPD_BLACK);
-    }while(display.nextPage());
-    delay(250);
+  zbThermostat.onTempReceive(receiveTemperature);
+  zbThermostat.onHumidityReceive(receiveHumidity);
 
-    display.setPartialWindow(0,0,100,100);
-    display.firstPage();
-    do{
-        display.fillRect(0,50,50,50,GxEPD_BLACK);
-        display.fillRect(50,0,50,50,GxEPD_BLACK);
-    }while(display.nextPage());
+  zbThermostat.setManufacturerAndModel(
+      "DIY Smart Room",
+      "ESP32-C6 Thermostat"
+  );
 
-    delay(250);
-    
-    a++;
+  zbThermostat.allowMultipleBinding(true);
 
-    if(a == 10){
-        display.refresh();
-        a = 0;
-    }
+  Zigbee.addEndpoint(&zbThermostat);
+
+  log_i("Starting Zigbee");
+
+  if (!Zigbee.begin(ZIGBEE_ROUTER)){
+      log_e("Failed to start Zigbee");
+      ESP.restart();
+  }
+
+  log_i("Waiting for Zigbee network");
+
+  while (!Zigbee.connected()){
+      delay(100);
+  }
+
+  log_i("Connected to Zigbee network");
+  log_i("Waiting for temperature sensor to join or rejoin");
 
 }
 
-const char HelloWorld[] = "Hello World!";
-const char HelloWeACtStudio[] = "WeAct Studio";
 
-void helloWorld()
-{
-  display.setRotation(1);
-  display.setFont(&FreeMonoBold9pt7b);
+void izpis(int id){
+  display.setPartialWindow(20,(!id)?20:50,display.width(),25);
   display.setTextColor(GxEPD_BLACK);
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  display.getTextBounds(HelloWorld, 0, 0, &tbx, &tby, &tbw, &tbh);
-  // center the bounding box by transposition of the origin:
-  uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  uint16_t y = ((display.height() - tbh) / 2) - tby;
-  display.setFullWindow();
+  display.setTextSize(3);
+  char* str = frankenSteinnanjeStringov(id,arrPodatkov[id]->stevilo);
   display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(x, y-tbh);
-    display.print(HelloWorld);
-    display.setTextColor(display.epd2.hasColor ? GxEPD_RED : GxEPD_BLACK);
-    display.getTextBounds(HelloWeACtStudio, 0, 0, &tbx, &tby, &tbw, &tbh);
-    x = ((display.width() - tbw) / 2) - tbx;
-    display.setCursor(x, y+tbh);
-    display.print(HelloWeACtStudio);
-  }
-  while (display.nextPage());
+  do{
+    display.setCursor(20,(!id)?20 : 50);
+    display.print(str);
+  }while(display.nextPage());
+  Serial.println(str);
+  free(str);
 }
 
-void helloFullScreenPartialMode()
-{
-  //Serial.println("helloFullScreenPartialMode");
-  const char fullscreen[] = "full screen update";
-  const char fpm[] = "fast partial mode";
-  const char spm[] = "slow partial mode";
-  const char npm[] = "no partial mode";
-  display.setPartialWindow(0, 0, display.width(), display.height());
-  display.setRotation(1);
-  display.setFont(&FreeMonoBold9pt7b);
-  if (display.epd2.WIDTH < 104) display.setFont(0);
-  if((display.epd2.panel == GxEPD2::GDEY029F51H) || (display.epd2.panel == GxEPD2::GDEM0154F51H))
-    display.setTextColor(GxEPD_YELLOW);
-  else
-    display.setTextColor(GxEPD_BLACK);
-  const char* updatemode;
-  if (display.epd2.hasFastPartialUpdate)
-  {
-    updatemode = fpm;
-  }
-  else if (display.epd2.hasPartialUpdate)
-  {
-    updatemode = spm;
-  }
-  else
-  {
-    updatemode = npm;
-  }
-  // do this outside of the loop
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  // center update text
-  display.getTextBounds(fullscreen, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t utx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t uty = ((display.height() / 4) - tbh / 2) - tby;
-  // center update mode
-  display.getTextBounds(updatemode, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t umx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t umy = ((display.height() * 3 / 4) - tbh / 2) - tby;
-  // center HelloWorld
-  display.getTextBounds(HelloWorld, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t hwx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t hwy = ((display.height() - tbh) / 2) - tby;
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(hwx, hwy);
-    display.print(HelloWorld);
-    display.setCursor(utx, uty);
-    display.print(fullscreen);
-    display.setCursor(umx, umy);
-    display.print(updatemode);
-  }
-  while (display.nextPage());
-  //Serial.println("helloFullScreenPartialMode done");
+
+char* frankenSteinnanjeStringov(int id, float st){        //naredi EN velik string za izpis (seveda ga pol se free-am)
+  char* string = (char*)calloc(sizeof(char),(strlen(arrPodatkov[id]->enota) + strlen(arrPodatkov[id]->stvar) + 10 ));
+  strcat(string,arrPodatkov[id]->stvar);
+  char* temp = (char*)calloc(sizeof(char),10);
+  sprintf(temp,"%2.1f ",st);
+  strcat(string,temp);
+  strcat(string,arrPodatkov[id]->enota);
+  free(temp);
+  return string;
 }
 
-void showPartialUpdate()
-{
-  // some useful background
-  helloWorld();
-  // use asymmetric values for test
-  uint16_t box_x = 10;
-  uint16_t box_y = 15;
-  uint16_t box_w = 70;
-  uint16_t box_h = 20;
-  uint16_t cursor_y = box_y + box_h - 6;
-  if (display.epd2.WIDTH < 104) cursor_y = box_y + 6;
-  float value = 13.95;
-  uint16_t incr = display.epd2.hasFastPartialUpdate ? 1 : 3;
-  display.setFont(&FreeMonoBold9pt7b);
-  if (display.epd2.WIDTH < 104) display.setFont(0);
-  display.setTextColor(GxEPD_BLACK);
-  // show where the update box is
-  for (uint16_t r = 0; r < 4; r++)
-  {
-    display.setRotation(r);
-    display.setPartialWindow(box_x, box_y, box_w, box_h);
-    display.firstPage();
-    do
-    {
-      display.fillRect(box_x, box_y, box_w, box_h, GxEPD_BLACK);
-      //display.fillScreen(GxEPD_BLACK);
-    }
-    while (display.nextPage());
-    delay(2000);
-    display.firstPage();
-    do
-    {
-      display.fillRect(box_x, box_y, box_w, box_h, GxEPD_WHITE);
-    }
-    while (display.nextPage());
-    delay(1000);
+void loop(){
+  if(bol){
+    bol = false;
+    Serial.println("IZPIS!!!\n");
+    izpis(0);
   }
-  //return;
-  // show updates in the update box
-  for (uint16_t r = 0; r < 4; r++)
-  {
-    display.setRotation(r);
-    display.setPartialWindow(box_x, box_y, box_w, box_h);
-    for (uint16_t i = 1; i <= 10; i += incr)
-    {
-      display.firstPage();
-      do
-      {
-        display.fillRect(box_x, box_y, box_w, box_h, GxEPD_WHITE);
-        display.setCursor(box_x, cursor_y);
-        display.print(value * i, 2);
-      }
-      while (display.nextPage());
-      delay(500);
-    }
-    delay(1000);
-    display.firstPage();
-    do
-    {
-      display.fillRect(box_x, box_y, box_w, box_h, GxEPD_WHITE);
-    }
-    while (display.nextPage());
-    delay(1000);
+  
+  if(lol){
+    lol = false;
+    izpis(1);
   }
 }
