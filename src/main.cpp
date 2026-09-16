@@ -6,6 +6,7 @@
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include "Zigbee.h"
 #include "stdlib.h"
+#include "Graf.cpp"
 
 #define EPD_SCK   6
 #define EPD_MOSI  7
@@ -14,17 +15,23 @@
 #define EPD_RES   11
 #define EPD_BUSY  12
 
+#define ST_MER_ZA_SKOK 2
+
 struct _podatek{
   const char* enota;
   const char* stvar;
   float stevilo;
+  float vsotaMer = 0.0;
+  int stPrebranihMer = 0;
 };
 
 _podatek** arrPodatkov = (_podatek**)calloc(sizeof(_podatek*),2);
 
+
 GxEPD2_BW<GxEPD2_370_GDEY037T03, GxEPD2_370_GDEY037T03::HEIGHT> display(
     GxEPD2_370_GDEY037T03(EPD_CS, EPD_DC, EPD_RES, EPD_BUSY)
 );
+
 
 #ifndef ZIGBEE_MODE_ZCZR
 #error "Zigbee Coordinator/Router mode is not enabled!"
@@ -33,6 +40,12 @@ GxEPD2_BW<GxEPD2_370_GDEY037T03, GxEPD2_370_GDEY037T03::HEIGHT> display(
 #define ZIGBEE_ENDPOINT 1
 
 void izpis(int);
+void receiveTemperature(float);
+void receiveHumidity(float);
+char* frankenSteinnanjeStringov(int, float);
+void test(void);
+
+Graf graf(40,50,360, 150, &display);
 
 ZigbeeThermostat zbThermostat(ZIGBEE_ENDPOINT);
 bool bol = false;
@@ -41,16 +54,24 @@ bool lol = false;
 void receiveTemperature(float temperature){
   bol = true;
   arrPodatkov[0]->stevilo = temperature;
+  arrPodatkov[0]->vsotaMer += temperature;
+  arrPodatkov[0]->stPrebranihMer++;
+
+  if(arrPodatkov[0]->stPrebranihMer == ST_MER_ZA_SKOK){
+  }
 }
 
 
 void receiveHumidity(float humidity){
   lol = true;
   arrPodatkov[1]->stevilo = humidity;
+  arrPodatkov[1]->vsotaMer += humidity;
+  arrPodatkov[1]->stPrebranihMer++;
 
+  if(arrPodatkov[0]->stPrebranihMer == ST_MER_ZA_SKOK){
+  }
 }
 
-char* frankenSteinnanjeStringov(int, float);
 
 void setup(){
   SPI.begin(EPD_SCK,-1,EPD_MOSI,EPD_CS);      //na zalost je treba napisati custom configuracijo SPI bus-a, saj
@@ -101,6 +122,11 @@ void setup(){
   log_i("Connected to Zigbee network");
   log_i("Waiting for temperature sensor to join or rejoin");
 
+  izpis(0);
+  //test();
+  graf.b();
+  delay(1000);
+  graf.d();
 }
 
 
@@ -130,15 +156,35 @@ char* frankenSteinnanjeStringov(int id, float st){        //naredi EN velik stri
   return string;
 }
 
+void test(){
+  display.setPartialWindow(20,50, display.width()-40, display.height() - 70);
+  display.firstPage();
+  do{
+   display.fillRect(20,50, display.width()-40, display.height() - 70, GxEPD_BLACK); 
+  }while(display.nextPage());
+  
+  display.setPartialWindow(0,display.height()/2,16,16);
+  display.setTextColor(GxEPD_BLACK);
+  display.setTextSize(2);
+  display.firstPage();
+  do{
+    display.setCursor(0,display.height()/2);
+    display.print(20);
+  }while(display.nextPage());
+}
+
+
 void loop(){
+
+  //Serial.println(graf.izracunaj());
+
   if(bol){
     bol = false;
-    Serial.println("IZPIS!!!\n");
     izpis(0);
   }
   
   if(lol){
     lol = false;
-    izpis(1);
+    //izpis(1);
   }
 }
