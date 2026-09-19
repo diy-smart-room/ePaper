@@ -115,9 +115,11 @@ void setup(){
 
   log_i("Waiting for Zigbee network");
 
+  /*
   while (!Zigbee.connected()){
       delay(100);
   }
+  */
 
   log_i("Connected to Zigbee network");
   log_i("Waiting for temperature sensor to join or rejoin");
@@ -126,18 +128,21 @@ void setup(){
   //test();
   graf.b();
   delay(1000);
-  graf.d();
+
+  //graf.d();
+  graf.e();
+
 }
 
 
 void izpis(int id){
-  display.setPartialWindow(20,(!id)?20:50,display.width(),25);
+  display.setPartialWindow(20,10,display.width(),25);
   display.setTextColor(GxEPD_BLACK);
   display.setTextSize(3);
   char* str = frankenSteinnanjeStringov(id,arrPodatkov[id]->stevilo);
   display.firstPage();
   do{
-    display.setCursor(20,(!id)?20 : 50);
+    display.setCursor(20,10);
     display.print(str);
   }while(display.nextPage());
   Serial.println(str);
