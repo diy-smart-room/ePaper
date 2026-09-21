@@ -16,6 +16,7 @@
 #define EPD_BUSY  12
 
 #define ST_MER_ZA_SKOK 2
+#define BUTTON 2
 
 struct _podatek{
   const char* enota;
@@ -56,9 +57,7 @@ void receiveTemperature(float temperature){
   arrPodatkov[0]->stevilo = temperature;
   arrPodatkov[0]->vsotaMer += temperature;
   arrPodatkov[0]->stPrebranihMer++;
-
-  if(arrPodatkov[0]->stPrebranihMer == ST_MER_ZA_SKOK){
-  }
+  graf.e(temperature);
 }
 
 
@@ -68,7 +67,7 @@ void receiveHumidity(float humidity){
   arrPodatkov[1]->vsotaMer += humidity;
   arrPodatkov[1]->stPrebranihMer++;
 
-  if(arrPodatkov[0]->stPrebranihMer == ST_MER_ZA_SKOK){
+  if(arrPodatkov[1]->stPrebranihMer == ST_MER_ZA_SKOK){
   }
 }
 
@@ -124,14 +123,15 @@ void setup(){
   log_i("Connected to Zigbee network");
   log_i("Waiting for temperature sensor to join or rejoin");
 
+  pinMode(BUTTON, INPUT);
+
   izpis(0);
   //test();
+
   graf.b();
+  graf.d();
   delay(1000);
-
-  //graf.d();
-  graf.e();
-
+  graf.e(23.41);
 }
 
 
@@ -161,32 +161,33 @@ char* frankenSteinnanjeStringov(int id, float st){        //naredi EN velik stri
   return string;
 }
 
+float num;
+
 void test(){
-  display.setPartialWindow(20,50, display.width()-40, display.height() - 70);
-  display.firstPage();
-  do{
-   display.fillRect(20,50, display.width()-40, display.height() - 70, GxEPD_BLACK); 
-  }while(display.nextPage());
-  
-  display.setPartialWindow(0,display.height()/2,16,16);
-  display.setTextColor(GxEPD_BLACK);
-  display.setTextSize(2);
-  display.firstPage();
-  do{
-    display.setCursor(0,display.height()/2);
-    display.print(20);
-  }while(display.nextPage());
+    num = 20 + rand()%9 + (float)((rand()%10))/10;
+    receiveTemperature(num);
 }
 
+int gumb;
+int next = 0;
 
 void loop(){
-
   //Serial.println(graf.izracunaj());
+    gumb = digitalRead(BUTTON);
+    //Serial.println(gumb);
 
-  if(bol){
-    bol = false;
-    izpis(0);
-  }
+    if(gumb == 1 && millis() > next){
+        next = millis() + 500;
+        gumb = 0;
+        test();
+    }
+
+    if(bol){
+        bol = false;
+        izpis(0);
+    }
+
+  //graf.e();
   
   if(lol){
     lol = false;

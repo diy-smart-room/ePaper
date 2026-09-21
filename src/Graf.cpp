@@ -17,19 +17,19 @@ class Graf{
         int posY;
         int width;
         int height;
-
         int grafX;          //tole pa je za dobesedno graf (crta)
         int grafY;
         int grafW;
         int grafH;
         GxEPD2_BW<GxEPD2_370_GDEY037T03, GxEPD2_370_GDEY037T03::HEIGHT> *display;
-        int minTemp = 20;
-        int maxTemp = 30;       // in Celsius 
-        int deltaTime = 12;     // in hours 
+        float arr[DEFAULT_X_CRT];
+
     public:
         Graf(int x,int y, int w, int h, GxEPD2_BW<GxEPD2_370_GDEY037T03, GxEPD2_370_GDEY037T03::HEIGHT> *display):
             posX(x), posY(y), width(w), height(h), display(display) {
-                d();
+                for(int i = 0; i < DEFAULT_X_CRT; i++){
+                    arr[i] = -1;
+                }
             }
         
         void a(void){           //za preverjanje template-a za grafikon
@@ -80,7 +80,7 @@ class Graf{
 
                     stY = y;
                     stX = x - VELIKOST_CRTIC - 8;
-                    snprintf(str,sizeof(str),"%d",i - 1);
+                    snprintf(str,sizeof(str),"%d",i + 19);
                     display->getTextBounds(str,0,0,&x1,&y1,&stW,&stH);
                     display->setCursor(stX + 1- stW/2,stY + 1 - stH/2);
                     display->print(str);
@@ -122,12 +122,25 @@ class Graf{
             grafW = gW;
         }
 
-        void e(){
+        void e(float stevilo){
+            int razmakX = width / DEFAULT_X_CRT;
+            int razmakY = height / DEFAULT_Y_CRT;
+
+            float temp;
+
+            for(int i = 0; i < DEFAULT_X_CRT; i++){
+                temp = arr[i];
+                arr[i] = stevilo;
+                stevilo = temp;
+            }
+
             display->setPartialWindow(grafX,grafY,grafW,grafH);
             do{
                 display->fillRect(grafX,grafY,grafW,grafH,GxEPD_WHITE);
-                display->drawPixel(width/6,height/4,GxEPD_BLACK);
+                for(int i = 0; arr[i+1] > -1 && i < DEFAULT_X_CRT - 1 ; i++){
+                    display->drawLine(posX + width - i * razmakX, posY + (int)(height - (arr[i]-20.0)/9.0 * height),
+                                      posX + width - (i+1) * razmakX, posY + (int)(height - (arr[i+1]-20.0)/9.0*height), GxEPD_BLACK);
+                }
             }while(display->nextPage());
         }
-
 };
