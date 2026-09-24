@@ -49,15 +49,18 @@ void test(void);
 Graf graf(40,50,360, 150, &display);
 
 ZigbeeThermostat zbThermostat(ZIGBEE_ENDPOINT);
-bool bol = false;
+bool tempText = false;
+bool tempGraf = false;
 bool lol = false;
 
 void receiveTemperature(float temperature){
-  bol = true;
+  tempText = true;
+  tempGraf = true;
   arrPodatkov[0]->stevilo = temperature;
   arrPodatkov[0]->vsotaMer += temperature;
   arrPodatkov[0]->stPrebranihMer++;
   graf.e(temperature);
+  tempGraf = false;
 }
 
 
@@ -114,11 +117,9 @@ void setup(){
 
   log_i("Waiting for Zigbee network");
 
-  /*
   while (!Zigbee.connected()){
       delay(100);
   }
-  */
 
   log_i("Connected to Zigbee network");
   log_i("Waiting for temperature sensor to join or rejoin");
@@ -131,7 +132,6 @@ void setup(){
   graf.b();
   graf.d();
   delay(1000);
-  graf.e(23.41);
 }
 
 
@@ -179,11 +179,11 @@ void loop(){
     if(gumb == 1 && millis() > next){
         next = millis() + 500;
         gumb = 0;
-        test();
     }
 
-    if(bol){
-        bol = false;
+
+    if(tempText && !tempGraf){
+        tempText = false;
         izpis(0);
     }
 

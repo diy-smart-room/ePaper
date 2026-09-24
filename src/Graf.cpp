@@ -132,6 +132,7 @@ class Graf{
                 temp = arr[i];
                 arr[i] = stevilo;
                 stevilo = temp;
+                Serial.println(arr[i]);
             }
 
             display->setPartialWindow(grafX,grafY,grafW,grafH);
